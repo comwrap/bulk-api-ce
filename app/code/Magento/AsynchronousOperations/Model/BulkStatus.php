@@ -6,16 +6,26 @@
 
 namespace Magento\AsynchronousOperations\Model;
 
+use Magento\AsynchronousOperations\Model\ResourceModel\Bulk\CollectionFactory as BulkCollectionFactory;
+use Magento\AsynchronousOperations\Model\ResourceModel\Operation\CollectionFactory as OperationCollectionFactory;
 use Magento\AsynchronousOperations\Api\Data\OperationInterface;
 use Magento\AsynchronousOperations\Api\Data\BulkSummaryInterface;
 use Magento\Framework\App\ResourceConnection;
 use Magento\AsynchronousOperations\Model\BulkStatus\CalculatedStatusSql;
 use Magento\Framework\EntityManager\MetadataPool;
+use Magento\Framework\Exception\NoSuchEntityException;
+use Magento\Framework\EntityManager\EntityManager;
+use Magento\AsynchronousOperations\Api\Data\BulkStatus\ShortInterfaceFactory as BulkStatusShortFactory;
+use Magento\AsynchronousOperations\Api\Data\BulkStatus\DetailedInterfaceFactory as BulkStatusDetailedFactory;
+use Magento\AsynchronousOperations\Api\Data\OperationDetailsInterfaceFactory;
+use Magento\Framework\Bulk\BulkStatusInterface;
+use Magento\AsynchronousOperations\Api\BulkRepositoryInterface;
 
 /**
  * Class BulkStatus
+ * @SuppressWarnings(PHPMD.CouplingBetweenObjects)
  */
-class BulkStatus implements \Magento\Framework\Bulk\BulkStatusInterface
+class BulkStatus implements BulkStatusInterface, BulkRepositoryInterface
 {
     /**
      * @var \Magento\AsynchronousOperations\Api\Data\BulkSummaryInterfaceFactory
@@ -43,25 +53,58 @@ class BulkStatus implements \Magento\Framework\Bulk\BulkStatusInterface
     private $metadataPool;
 
     /**
-     * BulkStatus constructor.
-     * @param ResourceModel\Bulk\CollectionFactory $bulkCollection
-     * @param ResourceModel\Operation\CollectionFactory $operationCollection
-     * @param ResourceConnection $resourceConnection
-     * @param CalculatedStatusSql $calculatedStatusSql
-     * @param MetadataPool $metadataPool
+     * @var EntityManager
+     */
+    private $entityManager;
+
+    /**
+     * @var \Magento\AsynchronousOperations\Api\Data\OperationDetailsInterfaceFactory
+     */
+    private $operationCounterFactory;
+
+    /**
+     * @var \Magento\AsynchronousOperations\Api\Data\BulkStatus\DetailedInterfaceFactory
+     */
+    private $bulkDetailedFactory;
+
+    /**
+     * @var \Magento\AsynchronousOperations\Api\Data\BulkStatus\ShortInterfaceFactory
+     */
+    private $bulkShortFactory;
+
+    /**
+     * Init dependencies.
+     *
+     * @param \Magento\AsynchronousOperations\Model\ResourceModel\Bulk\CollectionFactory $bulkCollection
+     * @param \Magento\AsynchronousOperations\Model\ResourceModel\Operation\CollectionFactory $operationCollection
+     * @param \Magento\Framework\App\ResourceConnection $resourceConnection
+     * @param \Magento\AsynchronousOperations\Model\BulkStatus\CalculatedStatusSql $calculatedStatusSql
+     * @param \Magento\Framework\EntityManager\MetadataPool $metadataPool
+     * @param \Magento\AsynchronousOperations\Api\Data\BulkStatus\DetailedInterfaceFactory $bulkDetailedFactory
+     * @param \Magento\AsynchronousOperations\Api\Data\BulkStatus\ShortInterfaceFactory $bulkShortFactory
+     * @param \Magento\AsynchronousOperations\Api\Data\OperationDetailsInterfaceFactory $operationCounter
+     * @param \Magento\Framework\EntityManager\EntityManager $entityManager
      */
     public function __construct(
-        \Magento\AsynchronousOperations\Model\ResourceModel\Bulk\CollectionFactory $bulkCollection,
-        \Magento\AsynchronousOperations\Model\ResourceModel\Operation\CollectionFactory $operationCollection,
+        BulkCollectionFactory $bulkCollection,
+        OperationCollectionFactory $operationCollection,
         ResourceConnection $resourceConnection,
         CalculatedStatusSql $calculatedStatusSql,
-        MetadataPool $metadataPool
+        MetadataPool $metadataPool,
+        BulkStatusDetailedFactory $bulkDetailedFactory,
+        BulkStatusShortFactory $bulkShortFactory,
+        OperationDetailsInterfaceFactory $operationCounter,
+        EntityManager $entityManager
     ) {
         $this->operationCollectionFactory = $operationCollection;
         $this->bulkCollectionFactory = $bulkCollection;
         $this->resourceConnection = $resourceConnection;
         $this->calculatedStatusSql = $calculatedStatusSql;
         $this->metadataPool = $metadataPool;
+        $this->bulkDetailedFactory = $bulkDetailedFactory;
+        $this->bulkShortFactory = $bulkShortFactory;
+        $this->operationCounterFactory = $operationCounter;
+        $this->entityManager = $entityManager;
     }
 
     /**
@@ -73,12 +116,13 @@ class BulkStatus implements \Magento\Framework\Bulk\BulkStatusInterface
             ? [$failureType]
             : [
                 OperationInterface::STATUS_TYPE_RETRIABLY_FAILED,
-                OperationInterface::STATUS_TYPE_NOT_RETRIABLY_FAILED
+                OperationInterface::STATUS_TYPE_NOT_RETRIABLY_FAILED,
             ];
         $operations = $this->operationCollectionFactory->create()
-            ->addFieldToFilter('bulk_uuid', $bulkUuid)
-            ->addFieldToFilter('status', $failureCodes)
-            ->getItems();
+                                                       ->addFieldToFilter('bulk_uuid', $bulkUuid)
+                                                       ->addFieldToFilter('status', $failureCodes)
+                                                       ->getItems();
+
         return $operations;
     }
 
@@ -87,27 +131,13 @@ class BulkStatus implements \Magento\Framework\Bulk\BulkStatusInterface
      */
     public function getOperationsCountByBulkIdAndStatus($bulkUuid, $status)
     {
-        if ($status === OperationInterface::STATUS_TYPE_OPEN) {
-            /**
-             * Total number of operations that has been scheduled within the given bulk
-             */
-            $allOperationsQty = $this->getOperationCount($bulkUuid);
-
-            /**
-             * Number of operations that has been processed (i.e. operations with any status but 'open')
-             */
-            $allProcessedOperationsQty = (int)$this->operationCollectionFactory->create()
-                ->addFieldToFilter('bulk_uuid', $bulkUuid)
-                ->getSize();
-
-            return $allOperationsQty - $allProcessedOperationsQty;
-        }
 
         /** @var \Magento\AsynchronousOperations\Model\ResourceModel\Operation\Collection $collection */
         $collection = $this->operationCollectionFactory->create();
+
         return $collection->addFieldToFilter('bulk_uuid', $bulkUuid)
-            ->addFieldToFilter('status', $status)
-            ->getSize();
+                          ->addFieldToFilter('status', $status)
+                          ->getSize();
     }
 
     /**
@@ -123,13 +153,17 @@ class BulkStatus implements \Magento\Framework\Bulk\BulkStatusInterface
             OperationInterface::STATUS_TYPE_NOT_RETRIABLY_FAILED,
             BulkSummaryInterface::NOT_STARTED,
             OperationInterface::STATUS_TYPE_OPEN,
-            OperationInterface::STATUS_TYPE_COMPLETE
+            OperationInterface::STATUS_TYPE_COMPLETE,
         ];
         $select = $collection->getSelect();
         $select->columns(['status' => $this->calculatedStatusSql->get($operationTableName)])
-            ->order(new \Zend_Db_Expr('FIELD(status, ' . implode(',', $statusesArray) . ')'));
+               ->order(
+                   new \Zend_Db_Expr(
+                       'FIELD(status, ' . implode(',', $statusesArray) . ')'
+                   )
+               );
         $collection->addFieldToFilter('user_id', $userId)
-            ->addOrder('start_time');
+                   ->addOrder('start_time');
 
         return $collection->getItems();
     }
@@ -143,8 +177,8 @@ class BulkStatus implements \Magento\Framework\Bulk\BulkStatusInterface
          * Number of operations that has been processed (i.e. operations with any status but 'open')
          */
         $allProcessedOperationsQty = (int)$this->operationCollectionFactory->create()
-            ->addFieldToFilter('bulk_uuid', $bulkUuid)
-            ->getSize();
+                                                                           ->addFieldToFilter('bulk_uuid', $bulkUuid)
+                                                                           ->getSize();
 
         if ($allProcessedOperationsQty == 0) {
             return BulkSummaryInterface::NOT_STARTED;
@@ -163,11 +197,14 @@ class BulkStatus implements \Magento\Framework\Bulk\BulkStatusInterface
         /**
          * Number of operations that has been completed successfully
          */
-        $allCompleteOperationsQty = $this->operationCollectionFactory->create()
-            ->addFieldToFilter('bulk_uuid', $bulkUuid)->addFieldToFilter(
+        $allCompleteOperationsQty = $this->operationCollectionFactory
+            ->create()
+            ->addFieldToFilter('bulk_uuid', $bulkUuid)
+            ->addFieldToFilter(
                 'status',
                 OperationInterface::STATUS_TYPE_COMPLETE
-            )->getSize();
+            )
+            ->getSize();
 
         if ($allCompleteOperationsQty == $allOperationsQty) {
             return BulkSummaryInterface::FINISHED_SUCCESSFULLY;
@@ -193,8 +230,68 @@ class BulkStatus implements \Magento\Framework\Bulk\BulkStatusInterface
 
         return (int)$connection->fetchOne(
             $connection->select()
-                ->from($metadata->getEntityTable(), 'operation_count')
-                ->where('uuid = ?', $bulkUuid)
+                       ->from($metadata->getEntityTable(), 'operation_count')
+                       ->where('uuid = ?', $bulkUuid)
         );
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function getBulkDetailedStatus($bulkUuid)
+    {
+        $bulkSummary = $this->bulkDetailedFactory->create();
+
+        /** @var \Magento\AsynchronousOperations\Api\Data\BulkStatus\DetailedInterface $bulk */
+        $bulk = $this->entityManager->load($bulkSummary, $bulkUuid);
+
+        if ($bulk->getBulkId() === null) {
+            throw new NoSuchEntityException(
+                __(
+                    'Bulk uuid %bulkUuid not exist',
+                    ['bulkUuid' => $bulkUuid]
+                )
+            );
+        }
+
+        $operations = $this->operationCollectionFactory->create()->addFieldToFilter('bulk_uuid', $bulkUuid)->getItems();
+
+        /** @var \Magento\AsynchronousOperations\Model\Operation\Details $operationDetails */
+        $operationCounter = $this->operationCounterFactory->create(['bulkUuid' => $bulkUuid]);
+
+        $bulk->setOperationsList($operations);
+        $bulk->setOperationsCounter($operationCounter);
+
+        return $bulk;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function getBulkShortStatus($bulkUuid)
+    {
+        $bulkSummary = $this->bulkShortFactory->create();
+
+        /** @var \Magento\AsynchronousOperations\Api\Data\BulkStatus\ShortInterface $bulk */
+        $bulk = $this->entityManager->load($bulkSummary, $bulkUuid);
+
+        if ($bulk->getBulkId() === null) {
+            throw new NoSuchEntityException(
+                __(
+                    'Bulk uuid %bulkUuid not exist',
+                    ['bulkUuid' => $bulkUuid]
+                )
+            );
+        }
+
+        $operations = $this->operationCollectionFactory->create()->addFieldToFilter('bulk_uuid', $bulkUuid)->getItems();
+
+        /** @var \Magento\AsynchronousOperations\Model\Operation\Details $operationDetails */
+        $operationCounter = $this->operationCounterFactory->create(['bulkUuid' => $bulkUuid]);
+
+        $bulk->setOperationsList($operations);
+        $bulk->setOperationsCounter($operationCounter);
+
+        return $bulk;
     }
 }
