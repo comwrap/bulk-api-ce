@@ -9,16 +9,16 @@ namespace Magento\WebapiAsync\Controller\Rest;
 use Magento\Framework\Exception\BulkException;
 use Magento\Webapi\Controller\Rest\RequestProcessorInterface;
 use Magento\Framework\Webapi\Rest\Response as RestResponse;
-use Magento\Webapi\Controller\Rest\InputParamsResolver;
+use Magento\WebapiAsync\Controller\Rest\Async\InputParamsResolver;
 use Magento\AsynchronousOperations\Model\MassSchedule;
 use Magento\AsynchronousOperations\Model\ConfigInterface as WebApiAsyncConfig;
 use Magento\Framework\Reflection\DataObjectProcessor;
 use Magento\AsynchronousOperations\Api\Data\AsyncResponseInterfaceFactory;
 use Magento\AsynchronousOperations\Api\Data\AsyncResponseInterface;
 
-class AsynchronousRequestProcessor implements RequestProcessorInterface
+class AsynchronousBulkRequestProcessor implements RequestProcessorInterface
 {
-    const PROCESSOR_PATH = "/^\\/async(\\/V.+)/";
+    const PROCESSOR_PATH = "/^\\/async\/bulk(\\/V.+)/";
 
     /**
      * @var \Magento\Framework\Webapi\Rest\Response
@@ -93,7 +93,7 @@ class AsynchronousRequestProcessor implements RequestProcessorInterface
         try {
             $asyncResponse = $this->asyncBulkPublisher->publishMass(
                 $topicName,
-                [$entitiesParamsArray]
+                $entitiesParamsArray
             );
         } catch (BulkException $bulkException) {
             $asyncResponse = $bulkException->getData();

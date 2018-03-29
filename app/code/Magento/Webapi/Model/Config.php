@@ -17,7 +17,7 @@ use Magento\Framework\Serialize\SerializerInterface;
  * @api
  * @since 100.0.2
  */
-class Config
+class Config implements ConfigInterface
 {
     const CACHE_ID = 'webapi_config';
 

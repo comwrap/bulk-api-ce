@@ -86,18 +86,14 @@ class InputParamsResolver
     public function resolve()
     {
         $this->requestValidator->validate();
+
         $webapiResolvedParams = [];
         $inputData = $this->request->getRequestData();
 
-        //simple check if async request have single or bulk entities
-        if (array_key_exists(0, $inputData)) {
-            foreach ($inputData as $key => $singleEntityParams) {
-                if (is_integer($key)) {
-                    $webapiResolvedParams[$key] = $this->resolveBulkItemParams($singleEntityParams);
-                }
+        foreach ($inputData as $key => $singleEntityParams) {
+            if (is_integer($key)) {
+                $webapiResolvedParams[$key] = $this->resolveBulkItemParams($singleEntityParams);
             }
-        } else {//single item request
-            $webapiResolvedParams[] = $this->inputParamsResolver->resolve();
         }
 
         return $webapiResolvedParams;

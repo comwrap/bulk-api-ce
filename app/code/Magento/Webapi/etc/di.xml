@@ -57,4 +57,5 @@
             </argument>
         </arguments>
     </type>
+    <preference for="Magento\Webapi\Model\ConfigInterface" type="Magento\Webapi\Model\Config" />
 </config>
