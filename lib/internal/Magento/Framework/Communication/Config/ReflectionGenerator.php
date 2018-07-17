@@ -65,14 +65,17 @@ class ReflectionGenerator
      * @param array|null $handlers
      * @return array
      */
-    public function generateTopicConfigForServiceMethod($topicName, $serviceType, $serviceMethod, $handlers = [])
+    public function generateTopicConfigForServiceMethod($topicName, $serviceType, $serviceMethod, $handlers = [], $isSync = null)
     {
         $methodMetadata = $this->extractMethodMetadata($serviceType, $serviceMethod);
         $returnType = $methodMetadata[Config::SCHEMA_METHOD_RETURN_TYPE];
         $returnType = ($returnType != 'void' && $returnType != 'null') ? $returnType : null;
+        if(!isset($isSync)){
+            $isSync = $returnType ? true : false;
+        }
         return [
             Config::TOPIC_NAME => $topicName,
-            Config::TOPIC_IS_SYNCHRONOUS => $returnType ? true : false,
+            Config::TOPIC_IS_SYNCHRONOUS => $isSync,
             Config::TOPIC_REQUEST => $methodMetadata[Config::SCHEMA_METHOD_PARAMS],
             Config::TOPIC_REQUEST_TYPE => Config::TOPIC_REQUEST_TYPE_METHOD,
             Config::TOPIC_RESPONSE => $returnType,
@@ -98,5 +101,22 @@ class ReflectionGenerator
             $part = lcfirst($part);
         }
         return implode('.', $parts) . '.' . $methodName;
+    }
+
+    /**
+     * Extract is_synchronous topic value.
+     *
+     * @param \DOMNode $topicNode
+     * @return boolean|null
+     */
+    protected function extractTopicIsSynchronous($topicNode)
+    {
+        $attributeName = Config::TOPIC_IS_SYNCHRONOUS;
+        $topicAttributes = $topicNode->attributes;
+        if (!$topicAttributes->getNamedItem($attributeName)) {
+            return null;
+        }
+        $isSynchronous = $topicAttributes->getNamedItem($attributeName)->nodeValue;
+        return $isSynchronous;
     }
 }
