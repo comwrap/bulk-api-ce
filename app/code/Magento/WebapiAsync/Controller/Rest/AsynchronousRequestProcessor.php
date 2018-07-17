@@ -99,7 +99,8 @@ class AsynchronousRequestProcessor implements RequestProcessorInterface
 
         $entitiesParamsArray = $this->inputParamsResolver->resolve();
         $topicName = $this->getTopicName($request);
-
+        //@TODO for test
+        $topicName = 'async.test.service.method';
         try {
             $asyncResponse = $this->asyncBulkPublisher->publishMass(
                 $topicName,

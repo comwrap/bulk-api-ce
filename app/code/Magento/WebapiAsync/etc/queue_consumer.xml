@@ -9,4 +9,6 @@
         xsi:noNamespaceSchemaLocation="urn:magento:framework-message-queue:etc/consumer.xsd">
     <consumer name="async.operations.all" queue="async.operations.all" connection="amqp"
               consumerInstance="Magento\AsynchronousOperations\Model\MassConsumer"/>
+    <consumer name="async.test.service.method" queue="async.test.service.method" connection="amqp"
+              consumerInstance="Magento\AsynchronousOperations\Model\MassConsumer"/>
 </config>

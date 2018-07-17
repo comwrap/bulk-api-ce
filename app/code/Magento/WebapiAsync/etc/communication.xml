@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework-message-queue:etc/queue.xsd">
+    <topic name="async.test.service.method" schema="Magento\Catalog\Api\ProductRepositoryInterface::save" is_synchronous="false">
+        <handler name="async" type="Magento\Catalog\Api\ProductRepositoryInterface" method="save"/>
+    </topic>
+</config>
