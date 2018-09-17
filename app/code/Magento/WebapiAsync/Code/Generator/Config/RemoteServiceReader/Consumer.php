@@ -4,10 +4,13 @@
  * See COPYING.txt for license details.
  */
 
+declare(strict_types=1);
+
 namespace Magento\WebapiAsync\Code\Generator\Config\RemoteServiceReader;
 
 use Magento\AsynchronousOperations\Model\ConfigInterface as WebApiAsyncConfig;
 use Magento\Framework\MessageQueue\ConnectionTypeResolver;
+use Psr\Log\LoggerInterface;
 
 /**
  * Remote service reader with auto generated configuration for queue_consumer.xml
@@ -18,30 +21,38 @@ class Consumer implements \Magento\Framework\Config\ReaderInterface
      * @var \Magento\Framework\MessageQueue\ConnectionTypeResolver
      */
     private $connectionTypeResolver;
+    /**
+     * @var \Psr\Log\LoggerInterface
+     */
+    private $logger;
 
     /**
      * Initialize dependencies.
      *
-     * @param \Magento\Framework\MessageQueue\ConnectionTypeResolver $connectionTypeResolver
+     * @param \Magento\Framework\MessageQueue\ConnectionTypeResolver $connectionResolver
+     * @param \Psr\Log\LoggerInterface $logger
      */
     public function __construct(
-        ConnectionTypeResolver $connectionTypeResolver
+        ConnectionTypeResolver $connectionResolver,
+        LoggerInterface $logger
     ) {
-        $this->connectionTypeResolver = $connectionTypeResolver;
+        $this->connectionTypeResolver = $connectionResolver;
+        $this->logger = $logger;
     }
 
     /**
      * Generate consumer configuration based on remote services declarations.
-     * If connection amqp not configured return empty array.
      *
      * @param string|null $scope
      * @return array
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
      */
     public function read($scope = null)
     {
         try {
             $this->connectionTypeResolver->getConnectionType('amqp');
         } catch (\Exception $e) {
+            $this->logger->debug(__('Connection type "amqp" not configured.'));
             return [];
         }
 
