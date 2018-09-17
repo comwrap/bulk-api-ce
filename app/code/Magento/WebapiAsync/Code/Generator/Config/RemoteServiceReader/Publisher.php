@@ -9,13 +9,17 @@ declare(strict_types=1);
 namespace Magento\WebapiAsync\Code\Generator\Config\RemoteServiceReader;
 
 use Magento\AsynchronousOperations\Model\ConfigInterface as WebApiAsyncConfig;
+use Magento\Framework\MessageQueue\ConnectionTypeResolver;
 
 /**
  * Remote service reader with auto generated configuration for queue_publisher.xml
  */
 class Publisher implements \Magento\Framework\Config\ReaderInterface
 {
-
+    /**
+     * @var \Magento\Framework\MessageQueue\ConnectionTypeResolver
+     */
+    private $connectionTypeResolver;
     /**
      * @var WebApiAsyncConfig
      */
@@ -27,9 +31,11 @@ class Publisher implements \Magento\Framework\Config\ReaderInterface
      * @param WebApiAsyncConfig $webapiAsyncConfig
      */
     public function __construct(
-        WebApiAsyncConfig $webapiAsyncConfig
+        WebApiAsyncConfig $webapiAsyncConfig,
+        ConnectionTypeResolver $connectionTypeResolver
     ) {
         $this->webapiAsyncConfig = $webapiAsyncConfig;
+        $this->connectionTypeResolver = $connectionTypeResolver;
     }
 
     /**
@@ -41,6 +47,11 @@ class Publisher implements \Magento\Framework\Config\ReaderInterface
      */
     public function read($scope = null)
     {
+        try {
+            $this->connectionTypeResolver->getConnectionType('amqp');
+        } catch (\Exception $e) {
+            return [];
+        }
         $asyncServicesData = $this->webapiAsyncConfig->getServices();
         $result = [];
         foreach ($asyncServicesData as $serviceData) {

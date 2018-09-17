@@ -25,6 +25,7 @@ interface ConfigInterface
     const TOPIC_PREFIX = 'async.';
     const DEFAULT_CONSUMER_INSTANCE = MassConsumer::class;
     const DEFAULT_CONSUMER_CONNECTION = 'amqp';
+    const DEFAULT_CONSUMER_NAME = 'async.operations.all';
     const DEFAULT_CONSUMER_MAX_MESSAGE = null;
     const SERVICE_PARAM_KEY_INTERFACE = 'interface';
     const SERVICE_PARAM_KEY_METHOD = 'method';
