@@ -62,6 +62,7 @@ class Consumer implements \Magento\Framework\Config\ReaderInterface
                 'queue' => WebApiAsyncConfig::DEFAULT_CONSUMER_NAME,
                 'consumerInstance' => WebApiAsyncConfig::DEFAULT_CONSUMER_INSTANCE,
                 'connection' => WebApiAsyncConfig::DEFAULT_CONSUMER_CONNECTION,
+                'handlers'=>[],
                 'maxMessages' => WebApiAsyncConfig::DEFAULT_CONSUMER_MAX_MESSAGE
             ];
 
